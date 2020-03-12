@@ -152,7 +152,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
-    <ClInclude Include="ThreadFunctions.h" />
+    <ClInclude Include="thread_functions.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Lab3_c++.cpp" />

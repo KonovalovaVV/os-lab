@@ -1,64 +1,43 @@
 ﻿#include "pch.h"
 #include <iostream>
 #include <thread>
-#include "ThreadFunctions.h"
+#include "thread_functions.h"
 
 using namespace std;
 
+const chrono::milliseconds average_timespan(12);
+const chrono::milliseconds min_max_timespan(7);
+
 int main()
 {
-	int ArraySize;
-	int* Array;
-	int Min, Max;
-	double ArrayAverage;
+	int array_size;
+	int* array;
+	int min;
+	int max;
+	double array_average;
 
 	cout << "Enter array size\n";
-	cin >> ArraySize;
-	Array = new int[ArraySize];
+	cin >> array_size;
+	array = new int[array_size];
 	cout << "Enter array elements\n";
-	for (int i = 0; i < ArraySize; i++)
-			cin >> Array[i];
+	for (int i = 0; i < array_size; i++)
+			cin >> array[i];
 
-	thread MinMax(MinMaxThreadFunction, Array, ArraySize, &Min, &Max, MinMaxTimespan);
-	thread Average(AverageThreadFunction, Array, ArraySize, &ArrayAverage, AverageTimespan);
+	thread min_max_thread(min_max_thread_function, array, array_size, &min, &max, min_max_timespan);
+	thread average_thread(average_thread_function, array, array_size, &array_average, average_timespan);
 
-	if (MinMax.joinable())
-	MinMax.join();
-	MinMax.~thread();		
+	if (min_max_thread.joinable())
+		min_max_thread.join();
+	min_max_thread.~thread();
 
-	if (Average.joinable())
-	Average.join();
-	Average.~thread();
+	if (average_thread.joinable())
+		average_thread.join();
+	average_thread.~thread();
 
-	Min = ArrayAverage;
-	Max = ArrayAverage;
+	max = array_average;
+	min = array_average;
 
-	cout << "Min and Max were by average: \nMin :" << Min << " Max: " << Max;
+	cout << "Min and max were replaced by average: \nNow min is : " << min << " Max is: " << max;
 
 	return 0;
-}
-
-void MinMaxThreadFunction(int* array, int size, int* min, int* max, chrono::milliseconds timespan) {
-	*min = INT32_MAX;
-	*max = INT32_MIN;
-	for (int i = 0; i < size; i++) {
-		if (array[i] < *min)
-			*min = array[i];
-		std::this_thread::sleep_for(timespan);
-		if (array[i] > *max)
-			*max = array[i];
-	}
-	cout << "Array min: " << *min << endl;
-	cout << "Array max: " << *max << endl;
-}
-
-void AverageThreadFunction(int* array, int size, double* average, chrono::milliseconds timespan) {
-	*average = 0;
-	for (int i = 0; i < size; i++)
-	{
-		*average += array[i];
-		std::this_thread::sleep_for(timespan);
-	}
-	*average /= size;
-	cout << "Array average: " << *average << endl;
 }
