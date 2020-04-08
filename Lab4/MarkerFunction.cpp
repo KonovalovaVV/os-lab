@@ -2,59 +2,62 @@
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
+#include <vector>
 
 const int sleep_time = 5;
 
-void MarkerFunc(int number, HANDLE start_event, HANDLE continue_event, 
+void MarkerFunc(int id, HANDLE start_event, HANDLE continue_event, 
 	            HANDLE* stop_event_array, bool* terminate_event_array, 
-				CRITICAL_SECTION critical_section, int array_size, int* array)
+				CRITICAL_SECTION critical_section, int array_size, std::vector<int> array)
 {
 	int marked_items = 0;
-	int* positions = new int[array_size];
-	for (int i = 0; i < array_size; i++)
-	{
-		positions[i] = -1;
-	}
-	std::cout <<  "Thread " << number + 1 << " created...\n";
+	std::vector<bool> positions(array_size, false);
+	std::cout <<  "Thread " << id + 1 << " created...\n";
 	WaitForSingleObject(start_event, INFINITE);
-	srand(number + 1);
+	srand(id + 1);
 
 	while (true)
 	{
 		int position = rand() % array_size;
 		EnterCriticalSection(&critical_section);
-		if (marked_items < array_size && array[position] == 0)
+		if (array[position])
 		{
 			Sleep(sleep_time);
-			array[position] = number + 1;
+			array[position] = id + 1;
 			LeaveCriticalSection(&critical_section);
 			Sleep(sleep_time);
-			positions[position] = 0;
+			positions[position] = true;
 			marked_items++;
-			
 		}
 		else
 		{
 			LeaveCriticalSection(&critical_section);
 
-			std::cout << "\nThread num " << number + 1 << "\n";
-			std::cout << "Elements marked " << marked_items << "\n";
-			std::cout << "Position of unmarkable element " << position << "\n";
+			std::cout << std::endl << "Thread num " << id + 1 
+				      << "\nElements marked " << marked_items
+				      << "\nPosition of unmarkable element " << position 
+				      << std::endl;
 
-			SignalObjectAndWait(stop_event_array[number], continue_event, INFINITE, FALSE);
-			if (terminate_event_array[number])
+			SignalObjectAndWait(stop_event_array[id], continue_event, INFINITE, FALSE);
+			if (terminate_event_array[id])
 			{
 				EnterCriticalSection(&critical_section);
+				int counter = 0;
 				for (int i = 0; i < array_size; i++)
 				{
-					if (positions[i] != -1)
+					if (positions[i])
 					{
 						array[i] = 0;
+						counter++;
+					}
+					if (counter == marked_items)
+					{
+						break;
 					}
 				}
 				LeaveCriticalSection(&critical_section);
-				std::cout << "\nThread " << number + 1 << " is dead...\n";
-				SetEvent(stop_event_array[number]);
+				std::cout << "\nThread " << id + 1 << " is dead...\n";
+				SetEvent(stop_event_array[id]);
 				break;
 			}
 		}
