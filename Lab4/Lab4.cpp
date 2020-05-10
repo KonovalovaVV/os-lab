@@ -72,7 +72,7 @@ int main()
 		int number;
 		std::cin >> number;
 		terminate_event_array[number - 1] = TRUE;
-		PulseEvent(continue_event);
+		ResetEvent(continue_event);
 
 		alive_thread_amount--;
 	}
