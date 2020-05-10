@@ -12,8 +12,8 @@ int main()
 {
 	int array_size;
 	int* array;
-	int min;
-	int max;
+	int min, min_index;
+	int max, max_index;
 	double array_average;
 
 	cout << "Enter array size\n";
@@ -23,7 +23,7 @@ int main()
 	for (int i = 0; i < array_size; i++)
 			cin >> array[i];
 
-	thread min_max_thread(min_max_thread_function, array, array_size, &min, &max, min_max_timespan);
+	thread min_max_thread(min_max_thread_function, array, array_size, &min,&min_index, &max,&max_index, min_max_timespan);
 	thread average_thread(average_thread_function, array, array_size, &array_average, average_timespan);
 
 	if (min_max_thread.joinable())
@@ -34,10 +34,10 @@ int main()
 		average_thread.join();
 	average_thread.~thread();
 
-	max = array_average;
-	min = array_average;
+	array[max_index] = array_average;
+	array[min_index] = array_average;
 
-	cout << "Min and max were replaced by average: \nNow min is : " << min << " Max is: " << max;
+	cout << "Min and max were replaced by average: \nNow min is : " << array[min_index] << " Max is: " << array[max_index];
 
 	return 0;
 }
