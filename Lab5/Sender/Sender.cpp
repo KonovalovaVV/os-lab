@@ -1,85 +1,117 @@
 ﻿#include <iostream>
 #include <Windows.h>
+#include <string>
 
-#include "../Receiver/Event.h"
-#include "../Receiver/Process.h"
-#include "../Receiver/Semaphore.h"
-#include "../Receiver/globals.h"
-#include "../Receiver/Mutex.h"
-#include "../Receiver/WinException.h"
+#include "../Receiver/Global_names.h"
 
-void consumer_producers(FILE* binary_file, Semaphore full_semaphore, Semaphore empty_semaphore, Mutex mutex)
+HANDLE open_event(int id)
 {
-	char operation;
-	char message[message_length];
+	HANDLE hEvent = OpenEventA(EVENT_ALL_ACCESS, FALSE, (EVENT_NAME + std::to_string(id)).c_str());
 
-	int rear;
-	if (binary_file)
+	if (hEvent == NULL)
 	{
-		for (;;)
+		std::cout << "Error with opening event: " << GetLastError() << std::endl;
+	}
+	return hEvent;
+}
+
+FILE* open_file(char* file_name)
+{
+	FILE* f;
+	fopen_s(&f, file_name, "r+b");
+
+	if (f == NULL)
+	{
+		std::cout << "Error with opening file: " << GetLastError() << std::endl;
+	}
+	return f;
+}
+
+void open_semaphore(HANDLE& sem, std::string name)
+{
+	sem = OpenSemaphoreA(SYNCHRONIZE | SEMAPHORE_MODIFY_STATE, FALSE, (LPCSTR)(name.c_str()));
+
+	if (sem == NULL)
+	{
+		std::cout << "Error with creating semaphore " << name << ":" << GetLastError() << std::endl;
+	}
+}
+
+void open_semaphores(HANDLE& read_sem, HANDLE& write_sem)
+{
+	open_semaphore(read_sem, READ_SEMAPHORE);
+	open_semaphore(write_sem, WRITE_SEMAPHORE);
+}
+
+HANDLE open_mutex()
+{
+	HANDLE mut = OpenMutexA(MUTEX_ALL_ACCESS, FALSE, MUTEX_NAME.c_str());
+
+	if (mut == NULL)
+	{
+		std::cout << "Error with opening mutex: " << GetLastError();
+	}
+	return mut;
+}
+
+void start_action(HANDLE write_semaphores, HANDLE read_semaphores, char* file_name)
+{
+	FILE* out = NULL;
+	char message[20];
+
+	HANDLE mutex = open_mutex();
+
+	while (true)
+	{
+		std::cout << "Choose action: 1-write, 2-stop" << std::endl;
+		char answer;
+		std::cin >> answer;
+
+		int page = 0;
+		if (answer == '1')
 		{
-			printf("Input 's' to send message or 'q' to quit: ");
-			std::cin >> operation;
+			fgets(message, 2, stdin);
 
-			if (operation == 's')
-			{
-				printf("Input message (less than 20 symbols): ");
-				fgets(message, message_length, stdin);
-				message[strlen(message) - 1] = 0;
+			std::cout << "Enter message: " << std::endl;
+			fgets(message, 20, stdin);
 
-				empty_semaphore.wait();
-				mutex.acquire();
+			WaitForSingleObject(write_semaphores, INFINITE);
+			WaitForSingleObject(mutex, INFINITE);
 
-				//putProduct(); 
-				rewind(binary_file);
-				fread(&rear, sizeof(int), 1, binary_file);
+			out = open_file(file_name);
 
-				fseek(binary_file, sizeof(int) + sizeof(char) * message_length * rear, SEEK_SET);
-				fwrite(message, sizeof(char), message_length, binary_file);
+			rewind(out);
+			fread(&page, sizeof(int), 1, out);
 
-				rear++;
-				rear %= number_of_messages;
+			fseek(out, sizeof(int) + sizeof(char) * 20 * page, SEEK_SET);
+			printf("\nMessage: %s\n\n", message);
 
-				rewind(binary_file);
-				fwrite(&rear, sizeof(int), 1, binary_file);
+			for (int i = 0; i < strlen(message); i++)
+				fwrite(&message[i], sizeof(char), 1, out);
 
-				fflush(binary_file);
+			page = (page + 1) % 20;
 
-				mutex.release();
-				full_semaphore.signal();
-			}
-			else if (operation == 'q')
-				break;
+			rewind(out);
+			fwrite(&page, sizeof(int), 1, out);
+
+			fclose(out);
+
+			ReleaseMutex(mutex);
+			ReleaseSemaphore(read_semaphores, 1, NULL);
+		}
+		else if (answer == '2')
+		{
+			break;
 		}
 	}
 }
 
 int main(int argc, char* argv[])
 {
-    FILE* binary_file;
-    fopen_s(&binary_file, argv[1], "r+b");
+	SetEvent(open_event(atoi(argv[2])));
 
-    int process_number = atoi(argv[2]);
+	HANDLE read_semaphores = NULL, write_semaphores = NULL;
+	open_semaphores(read_semaphores, write_semaphores);
 
-    std::string event_name = event_name_format + std::to_string(process_number);
-
-	try
-	{
-		Event event = Event((DWORD)EVENT_ALL_ACCESS, FALSE, event_name);
-		event.set_event();
-
-		Mutex mutex = Mutex(SYNCHRONIZE, FALSE, mutex_name);
-		Semaphore empty_semaphore = Semaphore((DWORD)SYNCHRONIZE, FALSE, empty_semaphore_name);
-		Semaphore full_semaphore = Semaphore((DWORD)SEMAPHORE_MODIFY_STATE, FALSE, full_semaphore_name);
-
-		consumer_producers(binary_file, full_semaphore, empty_semaphore, mutex);
-	}
-	catch (WinException& ex)
-	{
-		std::cout << ex.what() << " with error code " << ex.get_error_code() << std::endl;
-		return 1;
-	}
-
-	fclose(binary_file);
-    system("pause");
+	start_action(write_semaphores, read_semaphores, argv[1]);
 }
